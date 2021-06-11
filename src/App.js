@@ -1,8 +1,8 @@
 import express from 'express'
 import cors from "cors";
 import dayjs from 'dayjs'
-import { strict as assert} from 'assert'
 import {stripHtml} from 'string-strip-html'
+import Joi from 'joi'
 
 const app = express()
 app.use(express.json())
@@ -10,15 +10,25 @@ app.use(cors())
 
 let users = []
 const messages = []
-
+const userSchema = Joi.object({
+    name: Joi.string().required()
+})
+const messageSchema = Joi.object({
+    to: Joi.string().required(),
+    text: Joi.string().required(),
+    from: Joi.string().required(),
+    type: Joi.string(),
+    time: Joi.string()
+})
 
 // REGISTER PARTICIPANT //
 app.post("/participants", (req, res) => {
-    if(validateRegister(req.body.name)){
+
+    if(validateRegister(req.body)){
         res.sendStatus(400)  
     } else {
         req.body.lastStatus = Date.now()
-        if(req.body.name !== null){
+        if(req.body.name !== null || req.body.name !== undefined){
             req.body.name = stripHtml(req.body.name).result.trim()
             users.push(req.body)
             const logInMessage = {
@@ -60,15 +70,6 @@ app.get("/messages", (req, res) => {
     res.send(filteredMessages.slice(0, limit))
 })
 
-const validateRegister = (registerName) => {
-    const nameExists = users.find(user => user.name === registerName)
-    const nameEmpty = registerName === "" ? true : false
-    if((users.length > 0 && nameExists) || nameEmpty){
-        return true
-    }
-    return false
-}
-
 // CHECK STATUS //
 app.post("/status", (req, res) => {
     const userName = req.header("user")
@@ -100,21 +101,27 @@ const checkActivity = () => {
     }, [])
 }
 
-setInterval(checkActivity, 15000)
+// setInterval(checkActivity, 15000)
 
-
+const validateRegister = (body) => {
+    const nameExists = users.find(user => user.name === body.name)
+    if(userSchema.validate(body).error || (users.length > 0 && nameExists)){
+        return true
+    }
+    return false
+}
 
 const validateMessage = (body) => {
-    if(body.to === "" || body.text === ""){
+    const authorExists = users.find(user => user.name === body.from)
+    if(messageSchema.validate(body).error || !authorExists ){
+        console.log(messageSchema.validate(body).error)
         return true
     }
     if(body.type !== "message" && body.type !== "private_message"){
+        console.log("type err")
         return true
     }
-    const authorExists = users.find(user => user.name === body.from)
-    if(!authorExists){
-        return true
-    }
+    console.log("passou")
     return false
 }
 
