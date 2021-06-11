@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from "cors";
 import dayjs from 'dayjs'
+import { strict as assert} from 'assert'
+import {stripHtml} from 'string-strip-html'
 
 const app = express()
 app.use(express.json())
@@ -16,16 +18,19 @@ app.post("/participants", (req, res) => {
         res.sendStatus(400)  
     } else {
         req.body.lastStatus = Date.now()
-        users.push(req.body)
-        const logInMessage = {
-            from: req.body.name, 
-            to: 'Todos', 
-            text: 'entrou na sala...', 
-            type: 'status', 
-            time: dayjs().format("HH:mm:ss")
+        if(req.body.name !== null){
+            req.body.name = stripHtml(req.body.name).result.trim()
+            users.push(req.body)
+            const logInMessage = {
+                from: req.body.name, 
+                to: 'Todos', 
+                text: 'entrou na sala...', 
+                type: 'status', 
+                time: dayjs().format("HH:mm:ss")
+            }
+            messages.push(logInMessage)
+            res.sendStatus(200)
         }
-        messages.push(logInMessage)
-        res.sendStatus(200)
     }
 })
 
@@ -38,6 +43,7 @@ app.get("/participants", (req, res) => {
 app.post("/messages", (req, res) => {
     req.body.from = req.header("user")
     req.body.time = dayjs().format("HH:mm:ss")
+    req.body.text = stripHtml(req.body.text).result.trim()
     if(validateMessage(req.body)){
         res.sendStatus(400)
     } else {
@@ -78,7 +84,7 @@ app.post("/status", (req, res) => {
 // REMOVE INACTIVE USERS //
 const checkActivity = () => {
     users = users.reduce((acc, current) => {
-        if((Date.now() - current.lastStatus) <= 10){
+        if((Date.now() - current.lastStatus) <= 10000){
             acc.push(current)
         } else {
             const logoutMessage = {
