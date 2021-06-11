@@ -6,7 +6,7 @@ const app = express()
 app.use(express.json())
 app.use(cors())
 
-const users = [{name: "daniel"}]
+const users = []
 const messages = []
 
 
@@ -17,7 +17,7 @@ app.post("/participants", (req, res) => {
     } else {
         req.body.lastStatus = Date.now()
         users.push(req.body)
-        const logInMessage = {from: req.body.name, to: 'Todos', text: 'entrou na sala...', type: 'status', time: req.body.lastStatus}
+        const logInMessage = {from: req.body.name, to: 'Todos', text: 'entrou na sala...', type: 'status', time: dayjs().format("HH:mm:ss")}
         messages.push(logInMessage)
         res.sendStatus(200)
     }
@@ -42,7 +42,11 @@ app.post("/messages", (req, res) => {
 
 // GET MESSAGES //
 app.get("/messages", (req, res) => {
-    res.send(messages)
+    console.log("pediu")
+    const user = req.header("user")
+    const filteredMessages = messages.filter((message) => filterMessages(message, user)) 
+    const limit = req.query.limit || filteredMessages.length
+    res.send(filteredMessages.slice(0, limit))
 })
 
 const validateRegister = (registerName) => {
@@ -51,6 +55,7 @@ const validateRegister = (registerName) => {
     if((users.length > 0 && nameExists) || nameEmpty){
         return true
     }
+    
     return false
 }
 
@@ -65,6 +70,22 @@ const validateMessage = (body) => {
     if(!authorExists){
         return true
     }
+    return false
+}
+
+const filterMessages = (message, user) => {
+    if(message.type === "status"){
+        return true
+    }
+    if(message.type === "private_message" || message.type === "message"){
+        if(message.from === user || message.to === user || message.to === "todos"){
+            console.log("1")
+            return true
+        }
+        console.log("2")
+        return false
+    }
+    console.log("3")
     return false
 }
 
