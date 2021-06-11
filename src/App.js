@@ -33,6 +33,7 @@ app.post("/participants", (req, res) => {
         if(req.body.name !== null || req.body.name !== undefined){
             req.body.name = stripHtml(req.body.name).result.trim()
             usersDB.data.push(req.body)
+            fs.writeFileSync("./src/users.json", JSON.stringify(usersDB))
             const logInMessage = {
                 from: req.body.name, 
                 to: 'Todos', 
@@ -41,7 +42,6 @@ app.post("/participants", (req, res) => {
                 time: dayjs().format("HH:mm:ss")
             }
             messagesDB.data.push(logInMessage)
-            fs.writeFileSync("./src/users.json", JSON.stringify(usersDB))
             fs.writeFileSync("./src/messages.json", JSON.stringify(messagesDB))
             res.sendStatus(200)
         }
@@ -63,6 +63,7 @@ app.post("/messages", (req, res) => {
     } else {
         messagesDB.data.push(req.body)
         fs.writeFileSync("./src/messages.json", JSON.stringify(messagesDB))
+        console.log(messagesDB)
         res.sendStatus(200)
     }
 })
@@ -79,8 +80,11 @@ app.get("/messages", (req, res) => {
 app.post("/status", (req, res) => {
     const userName = req.header("user")
     const foundUser = usersDB.data.find(user => user.name === userName)
+    const foundUserIndex = usersDB.data.findIndex(user => user.name === userName)
     if(foundUser){
         foundUser.lastStatus = Date.now()
+        usersDB.data.splice(foundUserIndex, 1, foundUser)
+        fs.writeFileSync("./src/users.json", JSON.stringify(usersDB))
         res.sendStatus(200)
     } else {
         res.sendStatus(400)
@@ -89,7 +93,7 @@ app.post("/status", (req, res) => {
 
 // REMOVE INACTIVE USERS //
 const checkActivity = () => {
-    users = usersDB.data.reduce((acc, current) => {
+    const activeUsers = usersDB.data.reduce((acc, current) => {
         if((Date.now() - current.lastStatus) <= 10000){
             acc.push(current)
         } else {
@@ -105,6 +109,7 @@ const checkActivity = () => {
         }
         return acc
     }, [])
+    fs.writeFileSync("./src/users.json", JSON.stringify(activeUsers))
 }
 
 setInterval(checkActivity, 15000)
