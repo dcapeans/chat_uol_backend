@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from "cors";
 import dayjs from 'dayjs'
+import fs from 'fs'
 import {stripHtml} from 'string-strip-html'
 import Joi from 'joi'
 
@@ -8,8 +9,9 @@ const app = express()
 app.use(express.json())
 app.use(cors())
 
-let users = []
-const messages = []
+const usersDB = JSON.parse(fs.readFileSync("./src/users.json", "utf-8"))
+const messagesDB = JSON.parse(fs.readFileSync("./src/messages.json", "utf-8"))
+
 const userSchema = Joi.object({
     name: Joi.string().required()
 })
@@ -30,7 +32,7 @@ app.post("/participants", (req, res) => {
         req.body.lastStatus = Date.now()
         if(req.body.name !== null || req.body.name !== undefined){
             req.body.name = stripHtml(req.body.name).result.trim()
-            users.push(req.body)
+            usersDB.data.push(req.body)
             const logInMessage = {
                 from: req.body.name, 
                 to: 'Todos', 
@@ -38,7 +40,9 @@ app.post("/participants", (req, res) => {
                 type: 'status', 
                 time: dayjs().format("HH:mm:ss")
             }
-            messages.push(logInMessage)
+            messagesDB.data.push(logInMessage)
+            fs.writeFileSync("./src/users.json", JSON.stringify(usersDB))
+            fs.writeFileSync("./src/messages.json", JSON.stringify(messagesDB))
             res.sendStatus(200)
         }
     }
@@ -46,7 +50,7 @@ app.post("/participants", (req, res) => {
 
 // GET PARTICIPANTS LIST //
 app.get("/participants", (req, res) => {
-    res.send(users)
+    res.send(usersDB.data)
 })
 
 // SEND MESSAGE //
@@ -57,7 +61,8 @@ app.post("/messages", (req, res) => {
     if(validateMessage(req.body)){
         res.sendStatus(400)
     } else {
-        messages.push(req.body)
+        messagesDB.data.push(req.body)
+        fs.writeFileSync("./src/messages.json", JSON.stringify(messagesDB))
         res.sendStatus(200)
     }
 })
@@ -65,7 +70,7 @@ app.post("/messages", (req, res) => {
 // GET MESSAGES //
 app.get("/messages", (req, res) => {
     const user = req.header("user")
-    const filteredMessages = messages.filter((message) => filterMessages(message, user)) 
+    const filteredMessages = messagesDB.data.filter((message) => filterMessages(message, user)) 
     const limit = req.query.limit || filteredMessages.length
     res.send(filteredMessages.slice(0, limit))
 })
@@ -73,7 +78,7 @@ app.get("/messages", (req, res) => {
 // CHECK STATUS //
 app.post("/status", (req, res) => {
     const userName = req.header("user")
-    const foundUser = users.find(user => user.name === userName)
+    const foundUser = usersDB.data.find(user => user.name === userName)
     if(foundUser){
         foundUser.lastStatus = Date.now()
         res.sendStatus(200)
@@ -84,7 +89,7 @@ app.post("/status", (req, res) => {
 
 // REMOVE INACTIVE USERS //
 const checkActivity = () => {
-    users = users.reduce((acc, current) => {
+    users = usersDB.data.reduce((acc, current) => {
         if((Date.now() - current.lastStatus) <= 10000){
             acc.push(current)
         } else {
@@ -95,33 +100,31 @@ const checkActivity = () => {
                 type: 'status', 
                 time: dayjs().format("HH:mm:ss")
             }
-            messages.push(logoutMessage)
+            messagesDB.data.push(logoutMessage)
+            fs.writeFileSync("./src/messages.json", JSON.stringify(messagesDB))
         }
         return acc
     }, [])
 }
 
-// setInterval(checkActivity, 15000)
+setInterval(checkActivity, 15000)
 
 const validateRegister = (body) => {
-    const nameExists = users.find(user => user.name === body.name)
-    if(userSchema.validate(body).error || (users.length > 0 && nameExists)){
+    const nameExists = usersDB.data.find(user => user.name === body.name)
+    if(userSchema.validate(body).error || (usersDB.data.length > 0 && nameExists)){
         return true
     }
     return false
 }
 
 const validateMessage = (body) => {
-    const authorExists = users.find(user => user.name === body.from)
+    const authorExists = usersDB.data.find(user => user.name === body.from)
     if(messageSchema.validate(body).error || !authorExists ){
-        console.log(messageSchema.validate(body).error)
         return true
     }
     if(body.type !== "message" && body.type !== "private_message"){
-        console.log("type err")
         return true
     }
-    console.log("passou")
     return false
 }
 
